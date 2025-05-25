@@ -1,49 +1,44 @@
 // models/index.js
-// Pastikan path ke file konfigurasi database Anda benar.
-// Jika file database.js Anda ada di root folder backend, pathnya adalah '../database.js'
-// Jika ada di dalam folder config, maka '../config/database.js' sudah benar.
-const sequelize = require('../config/database'); // ATAU SESUAIKAN PATH KE FILE database.js ANDA
+const sequelize = require('../config/database'); // Atau '../config/database' sesuai struktur Anda
 
 const User = require('./user.model');
 const Vehicle = require('./vehicle.model');
 const ServiceHistory = require('./serviceHistory.model');
-const MaintenanceSchedule = require('./maintenanceSchedule.model'); // **TAMBAHKAN IMPORT INI**
-const Notification = require('./notification.model');       // **TAMBAHKAN IMPORT INI**
+const MaintenanceSchedule = require('./maintenanceSchedule.model');
+const ServiceRule = require('./serviceRule.model'); // Pastikan ini ada
+const Notification = require('./notification.model');
+const Trip = require('./trip.model'); // Model untuk tabel trips
 
 // Definisikan asosiasi
-User.hasMany(Vehicle, { foreignKey: 'user_id', as: 'vehicles' });
+User.hasMany(Vehicle, { foreignKey: 'user_id', as: 'vehicles', onDelete: 'CASCADE' });
 Vehicle.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
-Vehicle.hasMany(ServiceHistory, { foreignKey: 'vehicle_id', as: 'historyEntries' });
+Vehicle.hasMany(ServiceHistory, { foreignKey: 'vehicle_id', as: 'historyEntries', onDelete: 'CASCADE' });
 ServiceHistory.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'vehicle' });
 
-// Asosiasi untuk MaintenanceSchedule
-Vehicle.hasMany(MaintenanceSchedule, { foreignKey: 'vehicle_id', as: 'schedules' }); // **TAMBAHKAN INI**
-MaintenanceSchedule.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'vehicle' }); // **TAMBAHKAN INI**
+Vehicle.hasMany(MaintenanceSchedule, { foreignKey: 'vehicle_id', as: 'schedules', onDelete: 'CASCADE' });
+MaintenanceSchedule.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'vehicle' });
 
-// Asosiasi untuk Notification
-User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' }); // **TAMBAHKAN INI**
-Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' }); // **TAMBAHKAN INI**
+// Asosiasi untuk Notifikasi
+User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications', onDelete: 'CASCADE' });
+Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+Notification.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'relatedVehicle', allowNull: true, constraints: false });
+Notification.belongsTo(MaintenanceSchedule, { foreignKey: 'schedule_id', as: 'relatedSchedule', allowNull: true, constraints: false });
 
-// Opsional: Jika notifikasi bisa terkait langsung dengan kendaraan atau jadwal
-// Notification.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'related_vehicle', constraints: false, allowNull: true });
-// Notification.belongsTo(MaintenanceSchedule, { foreignKey: 'schedule_id', as: 'related_schedule', constraints: false, allowNull: true });
-
+// Asosiasi untuk Trip
+Vehicle.hasMany(Trip, { foreignKey: 'vehicle_id', as: 'trips', onDelete: 'CASCADE' });
+Trip.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'vehicle' });
 
 const db = {
   sequelize,
-  Sequelize: require('sequelize'), // Class Sequelize itu sendiri
+  Sequelize: require('sequelize'),
   User,
   Vehicle,
   ServiceHistory,
-  MaintenanceSchedule, // **PASTIKAN ADA DI SINI**
-  Notification,       // **PASTIKAN ADA DI SINI**
+  MaintenanceSchedule,
+  ServiceRule,
+  Notification,
+  Trip,
 };
-
-// Anda bisa memindahkan bagian sinkronisasi ke file server utama (main.js atau index.js)
-// agar lebih terkontrol kapan sinkronisasi dijalankan.
-// sequelize.sync({ alter: true }) // Hati-hati dengan alter: true di produksi
-//   .then(() => console.log('Database & tables synced from models/index.js!'))
-//   .catch(err => console.error('Failed to sync database from models/index.js:', err));
 
 module.exports = db;
