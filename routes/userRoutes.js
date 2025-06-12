@@ -1,34 +1,30 @@
 // userRoutes.js
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { User, Vehicle, ServiceHistory, sequelize } = require('../models'); // ServiceHistory diimpor di sini
+// Pastikan semua model yang dibutuhkan diimpor dari models/index.js
+const { User, Vehicle, ServiceHistory, sequelize } = require('../models');
 const authMiddleware = require('../utils/authMiddleware'); // Sesuaikan path jika perlu
 const multer = require('multer');
 const path = require('path');
-const { generateInitialSchedules } = require('../utils/maintenanceScheduler');
+const { generateInitialSchedules } = require('../utils/maintenanceScheduler'); // Sesuaikan path
 
 const router = express.Router();
 
-// --- Konfigurasi Multer (Sudah Benar) ---
+// --- Konfigurasi Multer ---
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Pastikan folder ini ada, atau buat secara dinamis jika perlu
     const uploadPath = 'uploads/profile_pictures/';
-    // fs.mkdirSync(uploadPath, { recursive: true }); // Untuk membuat folder jika belum ada
+    // Anda mungkin perlu membuat folder ini secara manual atau menggunakan fs.mkdirSync
+    // const fs = require('fs');
+    // fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    cb(null, req.user.id + '-' + Date.now() + path.extname(file.originalname));
+    // Pastikan req.user ada; ini berarti endpoint upload harus setelah authMiddleware
+    const userIdForFilename = req.user ? req.user.id : 'guest';
+    cb(null, userIdForFilename + '-' + Date.now() + path.extname(file.originalname));
   }
 });
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: function (req, file, cb) {
-    checkFileType(file, cb);
-  }
-}).single('profilePicture');
 
 function checkFileType(file, cb) {
   const filetypes = /jpeg|jpg|png|gif/;
@@ -37,142 +33,124 @@ function checkFileType(file, cb) {
   if (mimetype && extname) {
     return cb(null, true);
   } else {
-    cb('Error: Hanya gambar (jpeg, jpg, png, gif) yang diperbolehkan!');
+    cb('Error: Hanya gambar (jpeg, jpg, png, gif) yang diizinkan!');
   }
 }
 
-// --- Fungsi Helper untuk Logo (Sudah Benar) ---
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: checkFileType
+}).single('profilePicture'); // Nama field dari frontend harus 'profilePicture'
+
+
+// --- Fungsi Helper untuk Logo (jika masih digunakan) ---
 function getLogoUrl(brand, model) {
   let logoUrl = null;
-  const brandLower = brand.toLowerCase();
-  const modelLower = model.toLowerCase();
+  const brandLower = brand ? brand.toLowerCase() : '';
+  const modelLower = model ? model.toLowerCase() : '';
 
   if (brandLower === 'honda') {
     if (modelLower.includes('beat')) logoUrl = '/logos/honda_beat.png';
     else if (modelLower.includes('vario')) logoUrl = '/logos/honda_vario.png';
     else if (modelLower.includes('pcx')) logoUrl = '/logos/honda_pcx.png';
     else if (modelLower.includes('scoopy')) logoUrl = '/logos/honda_scoopy.png';
+    // Tambahkan model Honda lainnya
   } else if (brandLower === 'yamaha') {
     if (modelLower.includes('aerox')) logoUrl = '/logos/yamaha_aerox.png';
     else if (modelLower.includes('nmax')) logoUrl = '/logos/yamaha_nmax.png';
     else if (modelLower.includes('lexi')) logoUrl = '/logos/yamaha_lexi.png';
+    // Tambahkan model Yamaha lainnya
   } else if (brandLower === 'suzuki') {
     if (modelLower.includes('nexii') || modelLower.includes('nex ii') || modelLower.includes('nex 2')) logoUrl = '/logos/suzuki_nexii.png';
+    // Tambahkan model Suzuki lainnya
   }
+  // Pastikan path logo ini benar dan file ada di folder public/logos/
   return logoUrl;
 }
+
 
 // --- User Registration ---
 // POST /api/users/register
 router.post('/register', async (req, res) => {
   const {
     name, email, password, address,
-    plate_number, brand, model, current_odometer, last_service_date,
-    initial_services // Array opsional
+    plate_number, brand, model, current_odometer, last_service_date
+    // initialServices akan diambil langsung dari req.body.initialServices
   } = req.body;
 
-  if (!name || !email || !password || !plate_number || !brand || !model) {
-    return res.status(400).json({ message: 'Kolom wajib (pengguna & kendaraan) tidak boleh kosong.' });
+  // Validasi input dasar
+  if (!name || !email || !password || !plate_number || !brand || !model || current_odometer === undefined) {
+    return res.status(400).json({ message: 'Data pengguna dan kendaraan utama tidak boleh kosong.' });
   }
 
   const t = await sequelize.transaction();
+
   try {
+    // Cek apakah email sudah ada
     const existingUser = await User.findOne({ where: { email: email } }, { transaction: t });
     if (existingUser) {
       await t.rollback();
       return res.status(409).json({ message: 'Email sudah terdaftar.' });
     }
 
-    // user baru
+    // Buat user baru
     const newUser = await User.create({
-      name, email,
-      password_hash: password, // Akan di-hash oleh hook User.beforeCreate
+      name,
+      email,
+      password_hash: password, // Model User akan menghash ini menggunakan hook beforeCreate
       address: address || null,
     }, { transaction: t });
 
-    // 2. Dapatkan URL logo
     const logoUrlForVehicle = getLogoUrl(brand, model);
 
-    let odoUntukKendaraan = current_odometer || 0;
-    let tglServisTerakhirKendaraan = last_service_date || null;
-
-    // proses initial_service
-    if (initial_services && Array.isArray(initial_services) && initial_services.length > 0) {
-      let maxOdoFromHistory = 0;
-      let latestServiceDateFromHistory = null;
-
-      for (const service of initial_services) {
-        if (service.service_type && service.odometer_at_service) {
-          const odoService = parseInt(service.odometer_at_service, 10);
-          await ServiceHistory.create({
-            vehicle_id: null, // Akan diisi setelah newVehicle dibuat, atau perlu query ulang setelahnya
-            service_date: service.service_date || new Date(),
-            odometer_at_service: odoService,
-            service_type: service.service_type,
-          }, { transaction: t }); // Sementara vehicle_id null
-
-          if (odoService > maxOdoFromHistory) {
-            maxOdoFromHistory = odoService;
-          }
-          if (service.service_date) {
-            const currentServiceDate = new Date(service.service_date);
-            if (!latestServiceDateFromHistory || currentServiceDate > latestServiceDateFromHistory) {
-              latestServiceDateFromHistory = currentServiceDate;
-            }
-          }
-        }
-      }
-      if (maxOdoFromHistory > odoUntukKendaraan) {
-        odoUntukKendaraan = maxOdoFromHistory;
-      }
-      if (latestServiceDateFromHistory && (!tglServisTerakhirKendaraan || latestServiceDateFromHistory > new Date(tglServisTerakhirKendaraan))) {
-          tglServisTerakhirKendaraan = latestServiceDateFromHistory.toISOString().split('T')[0];
-      }
-    }
-
-    // 3. Baru buat kendaraan menggunakan newUser.user_id
+    // Buat kendaraan baru
     const newVehicle = await Vehicle.create({
       user_id: newUser.user_id,
-      plate_number, brand, model,
-      current_odometer: odoUntukKendaraan,
-      last_service_date: tglServisTerakhirKendaraan,
-      logo_url: logoUrlForVehicle,
-      last_odometer_update: new Date(),
+      plate_number,
+      brand,
+      model,
+      current_odometer: parseInt(current_odometer, 10) || 0,
+      last_service_date: last_service_date || null,
+      logo_url: logoUrlForVehicle, // Simpan URL logo
+      last_odometer_update: new Date(), // Set last_odometer_update saat pembuatan
     }, { transaction: t });
 
-    // Jika initial_services ada, update vehicle_id nya sekarang
-     if (initial_services && Array.isArray(initial_services) && initial_services.length > 0) {
-        for (const service of initial_services) {
-             if (service.service_type && service.odometer_at_service) {
-                 // Ini cara sederhana, idealnya Anda mengumpulkan ID service history yang baru dibuat
-                 // atau melakukan update berdasarkan kriteria lain jika tidak ada ID.
-                 // Untuk contoh, kita anggap kita bisa mengidentifikasi entri yang baru dibuat.
-                 // Lebih baik: buat entri ServiceHistory setelah newVehicle.vehicle_id ada.
-             }
+    // Proses initialServices jika ada
+    const receivedInitialServices = req.body.initialServices; // Ambil dari req.body
+
+    if (receivedInitialServices && Array.isArray(receivedInitialServices) && receivedInitialServices.length > 0) {
+      console.log('[userRoutes] Processing initial services:', receivedInitialServices);
+      for (const service of receivedInitialServices) {
+        if (service.service_type && service.odometer_at_service !== undefined && service.service_date) {
+          await ServiceHistory.create({
+            vehicle_id: newVehicle.vehicle_id, // Gunakan ID kendaraan yang baru dibuat
+            service_date: service.service_date,
+            odometer_at_service: parseInt(service.odometer_at_service, 10),
+            service_type: service.service_type,
+            description: service.description || 'Servis awal saat registrasi',
+            workshop_name: service.workshop_name || null,
+            cost: service.cost ? parseFloat(service.cost) : null,
+          }, { transaction: t });
+        } else {
+          console.warn('[userRoutes] Skipping incomplete initial service entry:', service);
         }
-        // Cara yang lebih baik untuk initial_services:
-        // Setelah newVehicle dibuat dan memiliki ID:
-        if (newVehicle.vehicle_id && initial_services && Array.isArray(initial_services)) {
-            for (const service of initial_services) {
-                if (service.service_type && service.odometer_at_service) {
-                    await ServiceHistory.create({
-                        vehicle_id: newVehicle.vehicle_id, // Sekarang vehicle_id sudah ada
-                        service_date: service.service_date || new Date(),
-                        odometer_at_service: parseInt(service.odometer_at_service, 10),
-                        service_type: service.service_type,
-                    }, { transaction: t });
-                }
-            }
-        }
+      }
+    } else {
+      console.log('[userRoutes] No initial services provided or an empty array.');
     }
 
-    await t.commit(); // Commit transaksi jika semua berhasil
-    if (newVehicle && newVehicle.vehicle_id) {
-        generateInitialSchedules(newVehicle.vehicle_id).catch(err => {
-            console.error("Error generating initial schedules post-registration:", err);
-            // Ini proses background, tidak perlu menggagalkan respons utama
-        });
-    }
+    // Panggil generateInitialSchedules setelah semua data (termasuk riwayat awal) disimpan
+    // dan transaksi siap di-commit.
+    // generateInitialSchedules bisa dipanggil setelah commit jika tidak perlu bagian dari transaksi ini.
+    // Jika generateInitialSchedules melakukan operasi DB yang harus atomik dengan registrasi, sertakan 't'.
+    await generateInitialSchedules(newVehicle.vehicle_id, t); // Kirim transaksi jika scheduler membutuhkannya
+
+    await t.commit(); // Commit transaksi
+
+    // Buat token JWT
+    const payload = { user: { id: newUser.user_id, name: newUser.name, email: newUser.email } };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }); // Token berlaku 7 hari
 
     res.status(201).json({
       message: 'Pengguna dan kendaraan berhasil didaftarkan!',
@@ -180,19 +158,24 @@ router.post('/register', async (req, res) => {
         user_id: newUser.user_id,
         name: newUser.name,
         email: newUser.email,
-        address: newUser.address
+        address: newUser.address,
+        photo_url: newUser.photo_url // Kirim photo_url jika ada (defaultnya null)
       },
-      vehicle: {
+      vehicle: { // Kirim detail kendaraan yang baru dibuat
         vehicle_id: newVehicle.vehicle_id,
         plate_number: newVehicle.plate_number,
         brand: newVehicle.brand,
         model: newVehicle.model,
+        current_odometer: newVehicle.current_odometer,
         logo_url: newVehicle.logo_url
-      }
+      },
+      token
     });
 
   } catch (error) {
-    if (t && !t.finished) await t.rollback(); // Rollback jika ada error
+    if (t && !t.finished && !t.rolledBack) { // Pastikan rollback hanya jika belum selesai atau di-rollback
+        await t.rollback();
+    }
     console.error('Error registrasi:', error);
     if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
       const messages = error.errors.map(e => e.message);
@@ -202,89 +185,111 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// --- User Login (Sudah Benar) ---
-router.post('/login', async (req, res) => {
-  // ... (kode login Anda yang sudah ada, terlihat sudah benar)
-  const { email, password } = req.body;
 
+// --- User Login ---
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ message: 'Email dan password wajib diisi.' });
   }
-
   try {
     const user = await User.findOne({ where: { email: email } });
-
     if (!user) {
-      return res.status(401).json({ message: 'Kredensial tidak valid (email salah).' });
+      return res.status(401).json({ message: 'Kredensial tidak valid.' });
     }
-
     const isMatch = await user.isValidPassword(password);
-
     if (!isMatch) {
-      return res.status(401).json({ message: 'Kredensial tidak valid (password salah).' });
+      return res.status(401).json({ message: 'Kredensial tidak valid.' });
     }
-
-    const payload = {
+    const payload = { user: { id: user.user_id, name: user.name, email: user.email } };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({
+      message: 'Login berhasil!',
+      token,
       user: {
-        id: user.user_id,
+        user_id: user.user_id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        address: user.address,
+        photo_url: user.photo_url
       }
-    };
-
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' },
-      (err, token) => {
-        if (err) {
-            console.error("Error signing JWT:", err);
-            return res.status(500).json({ message: 'Gagal membuat token.' });
-        }
-        // Kirim data user yang relevan (tanpa password)
-        res.json({
-          message: 'Login berhasil!',
-          token,
-          user: { // Pastikan data user yang dikirim relevan dan aman
-            user_id: user.user_id,
-            name: user.name,
-            email: user.email,
-            address: user.address,
-            photo_url: user.photo_url // Kirim juga photo_url jika ada
-          }
-        });
-      }
-    );
+    });
   } catch (error) {
     console.error('Error login:', error);
     res.status(500).json({ message: 'Error server saat login.', error: error.message });
   }
 });
 
-// --- Endpoint Profil (Sudah Benar) ---
+// --- Get User Profile ---
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
-    // req.user.id diambil dari token JWT setelah melewati authMiddleware
     const user = await User.findByPk(req.user.id, {
-      // Pilih atribut yang ingin dikembalikan ke frontend
-      // Pastikan 'photo_url' ada di tabel 'users' Anda
       attributes: ['user_id', 'name', 'email', 'address', 'photo_url', 'createdAt', 'updatedAt']
     });
-
     if (!user) {
       return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
     }
-
-    // Kirim data pengguna sebagai respons JSON
-    res.json(user); // Secara default, user.toJSON() akan dipanggil oleh res.json()
-
+    res.json(user);
   } catch (error) {
     console.error('Error mengambil profil:', error);
     res.status(500).json({ message: 'Error server saat mengambil profil.', error: error.message });
   }
 });
-router.put('/profile', authMiddleware, async (req, res) => { /* ... kode Anda ... */ });
-router.post('/profile/picture', authMiddleware, (req, res) => { /* ... kode Anda ... */ });
+
+// --- Update User Profile (Nama, Alamat) ---
+router.put('/profile/update', authMiddleware, async (req, res) => {
+  const { name, address } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+    }
+
+    if (name !== undefined) user.name = name;
+    if (address !== undefined) user.address = address; // Izinkan null untuk menghapus alamat
+
+    await user.save();
+    res.json({ message: 'Profil berhasil diperbarui.', user: { name: user.name, address: user.address, email: user.email, photo_url: user.photo_url } });
+  } catch (error) {
+    console.error('Error update profil:', error);
+    res.status(500).json({ message: 'Error server saat update profil.', error: error.message });
+  }
+});
+
+
+// --- Upload Profile Picture ---
+// Pastikan authMiddleware dijalankan SEBELUM multer mencoba mengakses req.user
+router.post('/profile/upload-picture', authMiddleware, (req, res) => {
+  upload(req, res, async (err) => {
+    if (err) {
+      console.error("Multer error:", err);
+      return res.status(400).json({ message: err.message || err });
+    }
+    if (req.file == undefined) {
+      return res.status(400).json({ message: 'Tidak ada file gambar yang dipilih.' });
+    }
+
+    try {
+      const user = await User.findByPk(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+      }
+      // Simpan path relatif ke database
+      const filePath = `/uploads/profile_pictures/${req.file.filename}`;
+      user.photo_url = filePath;
+      await user.save();
+      res.json({
+        message: 'Foto profil berhasil diunggah!',
+        filePath: filePath // Kirim path kembali ke client
+      });
+    } catch (error) {
+      console.error('Error saving file path to DB:', error);
+      res.status(500).json({ message: 'Error server saat menyimpan foto profil.', error: error.message });
+    }
+  });
+});
 
 
 module.exports = router;

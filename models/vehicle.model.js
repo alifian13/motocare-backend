@@ -16,7 +16,7 @@ const Vehicle = sequelize.define('Vehicle', {
   plate_number: {
     type: DataTypes.STRING(20),
     allowNull: false,
-    unique: true,
+    // unique: true,
   },
   brand: {
     type: DataTypes.STRING(100),
@@ -50,6 +50,13 @@ const Vehicle = sequelize.define('Vehicle', {
   tableName: 'vehicles',
   timestamps: true,
   underscored: true,
+  indexes: [ // <-- TAMBAHKAN BLOK INI
+    {
+      unique: true,
+      fields: ['plate_number'],
+      name: 'vehicles_plate_number_unique_constraint' // Nama constraint yang konsisten
+    }
+  ]
 });
 
 module.exports = Vehicle;

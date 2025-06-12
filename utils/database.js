@@ -1,7 +1,7 @@
 const { Sequelize } = require('sequelize');
 
 // Create a new instance of Sequelize for MySQL database connection
-const sequelize = new Sequelize('motocare_database', 'root', '', {
+const sequelize = new Sequelize('motocare', 'root', '', {
   host: 'localhost',
   dialect: 'mysql',
   logging: (sql, timing) => {

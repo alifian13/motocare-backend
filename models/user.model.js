@@ -16,7 +16,7 @@ const User = sequelize.define('User', {
   email: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
+    // unique: true,
     validate: {
       isEmail: true,
     },
@@ -50,6 +50,13 @@ const User = sequelize.define('User', {
   timestamps: true, // Sequelize akan mengelola created_at dan updated_at
   // Jika nama kolom timestamp Anda berbeda, gunakan underscored: true dan field seperti di atas
   underscored: true, // Otomatis mengubah camelCase menjadi snake_case untuk nama kolom default
+  indexes: [ // <-- TAMBAHKAN BLOK INI
+    {
+      unique: true,
+      fields: ['email'],
+      name: 'users_email_unique_constraint' // Anda bisa memilih nama ini, pastikan konsisten
+    }
+  ]
 });
 
 // Hook untuk hash password sebelum user disimpan

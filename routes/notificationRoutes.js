@@ -28,6 +28,29 @@ router.get('/my-notifications', authMiddleware, async (req, res) => {
   }
 });
 
+router.put('/:notificationId/read', authMiddleware, async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    const userId = req.user.id;
+
+    const notification = await Notification.findOne({
+      where: { notification_id: notificationId, user_id: userId }
+    });
+
+    if (!notification) {
+      return res.status(404).json({ message: 'Notifikasi tidak ditemukan.' });
+    }
+
+    notification.is_read = true;
+    await notification.save();
+
+    res.json({ message: 'Notifikasi ditandai sudah dibaca.', notification });
+  } catch (error) {
+    console.error('Error menandai notifikasi terbaca:', error);
+    res.status(500).json({ message: 'Gagal menandai notifikasi.', error: error.message });
+  }
+});
+
 // Endpoint POST untuk notifikasi juga harus menggunakan model Sequelize
 // seperti contoh yang saya berikan di respons sebelumnya.
 
