@@ -592,4 +592,46 @@ router.post('/:vehicleId/trips', authMiddleware, async (req, res) => {
   }
 });
 
+// GET all trips for a specific vehicle with pagination and sorting
+router.get('/:vehicleId/all-trips', authMiddleware, async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const userId = req.user.id; // Diambil dari token setelah authMiddleware
+
+    // Mengambil query parameter dari URL
+    const limit = parseInt(req.query.limit) || 10; // Default 10 jika tidak ada
+    const sortBy = req.query.sortBy || 'end_time'; // Default urutkan berdasarkan waktu selesai
+    const sortOrder = req.query.sortOrder === 'ASC' ? 'ASC' : 'DESC'; // Default urutkan menurun
+
+    // 1. Validasi: Pastikan kendaraan ini milik pengguna yang sedang login
+    const vehicle = await Vehicle.findOne({
+      where: {
+        vehicle_id: vehicleId,
+        user_id: userId,
+      },
+    });
+
+    // Jika kendaraan tidak ditemukan atau bukan milik user, kirim error 404
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Kendaraan tidak ditemukan atau Anda tidak memiliki akses.' });
+    }
+
+    // 2. Ambil data perjalanan dari database
+    const trips = await Trip.findAll({
+      where: { vehicle_id: vehicleId },
+      limit: limit,
+      order: [
+        [sortBy, sortOrder]
+      ],
+    });
+
+    // 3. Kirim data sebagai respons
+    res.status(200).json({ trips });
+
+  } catch (error) {
+    console.error('[GET_ALL_TRIPS_ERROR] Gagal mendapatkan data perjalanan:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server saat mengambil data perjalanan.' });
+  }
+});
+
 module.exports = router;

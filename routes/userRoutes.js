@@ -7,6 +7,7 @@ const authMiddleware = require('../utils/authMiddleware'); // Sesuaikan path jik
 const multer = require('multer');
 const path = require('path');
 const { generateInitialSchedules } = require('../utils/maintenanceScheduler'); // Sesuaikan path
+const { console } = require('inspector');
 
 const router = express.Router();
 
@@ -43,6 +44,40 @@ const upload = multer({
   fileFilter: checkFileType
 }).single('profilePicture'); // Nama field dari frontend harus 'profilePicture'
 
+const createStorage = (destinationPath) => {
+  return multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, destinationPath);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      const extension = path.extname(file.originalname);
+      cb(null, file.fieldname + "-" + uniqueSuffix + extension);
+},
+});
+};
+
+const imageFileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
+  } else {
+    cb(
+      new multer.MulterError(
+        "LIMIT_UNEXPECTED_FILE",
+        "Only image files (jpeg, png, gif, webp) are allowed!"
+      ),
+      false
+    );
+  }
+};
+
+const uploadProfilePicture = multer({
+  storage: createStorage('uploads/profile_pictures/'),
+  limits: {
+    fileSize: 1024 * 1024 * 2,
+  },
+  fileFilter: imageFileFilter,
+}).single("profilePicture");
 
 // --- Fungsi Helper untuk Logo (jika masih digunakan) ---
 function getLogoUrl(brand, model) {
@@ -262,7 +297,7 @@ router.put('/profile/update', authMiddleware, async (req, res) => {
 // --- Upload Profile Picture ---
 // Pastikan authMiddleware dijalankan SEBELUM multer mencoba mengakses req.user
 router.post('/profile/upload-picture', authMiddleware, (req, res) => {
-  upload(req, res, async (err) => {
+  uploadProfilePicture(req, res, async (err) => {
     if (err) {
       console.error("Multer error:", err);
       return res.status(400).json({ message: err.message || err });
