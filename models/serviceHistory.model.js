@@ -1,6 +1,5 @@
-// models/serviceHistory.model.js
 const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database'); // Sesuaikan path jika perlu
+const sequelize = require('../config/database');
 
 const ServiceHistory = sequelize.define('ServiceHistory', {
   history_id: {
@@ -8,19 +7,19 @@ const ServiceHistory = sequelize.define('ServiceHistory', {
     autoIncrement: true,
     primaryKey: true,
   },
-  vehicle_id: { // Foreign key ke tabel vehicles
+  vehicle_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
   service_date: {
-    type: DataTypes.DATEONLY, // Hanya tanggal
+    type: DataTypes.DATEONLY,
     allowNull: false,
   },
   odometer_at_service: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
-  service_type: { // e.g., 'Ganti Oli', 'Servis CVT'
+  service_type: {
     type: DataTypes.STRING,
     allowNull: false,
   },
@@ -36,11 +35,10 @@ const ServiceHistory = sequelize.define('ServiceHistory', {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: true,
   }
-  // created_at dan updated_at akan diurus oleh Sequelize jika timestamps: true
 }, {
   tableName: 'service_history',
-  timestamps: true, // Menggunakan created_at dan updated_at dari Sequelize
-  underscored: true, // Jika nama kolom di DB Anda created_at, updated_at
+  timestamps: true,
+  underscored: true, 
 });
 
 module.exports = ServiceHistory;

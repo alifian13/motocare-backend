@@ -32,17 +32,16 @@ router.post("/register", async (req, res) => {
       updatedAt: new Date(),
     };
 
-    // console.log('Inserting user data:', newUser); // Log the user data to check before inserting
     await Userauth.insert_data(newUser);
 
     // Insert motor data
     const motorData = {
       plat_nomor,
-      email, // Use the email from the user for linking the motor
+      email,
       brand,
       model,
       odometer,
-      last_service_date, // Include the last service date in motor data
+      last_service_date,
     };
 
     await Motorauth.insert_data(motorData);
@@ -52,7 +51,7 @@ router.post("/register", async (req, res) => {
     res.status(500).json({
       message: "Error in registering user and adding motor",
       error,
-      requestData: req.body, // Include the request data in the error response
+      requestData: req.body,
     });
   }
 });
@@ -71,7 +70,6 @@ router.post("/login", async (req, res) => {
     return res.status(400).json({ message: "Invalid password" });
   }
 
-  // Mock login success (return user data for now)
   res.status(200).json({ message: "Login successful", user });
 });
 

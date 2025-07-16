@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { sequelize, User, Vehicle } = require("./models"); // Impor dari models/index.js
+const { sequelize, User, Vehicle } = require("./models");
 
 const userRoutes = require("./routes/userRoutes");
 const vehicleRoutes = require("./routes/vehiclesRoutes");
@@ -39,15 +39,14 @@ app.use((err, req, res, next) => {
 // Sinkronisasi database dan jalankan server
 async function startServer() {
   try {
-    // await sequelize.sync(); // Hati-hati: { force: true } akan drop tabel
-    await sequelize.sync({ alter: true }); // Mencoba mencocokkan tabel dengan model
+    await sequelize.sync({ alter: true });
     console.log("Database synced successfully.");
     app.listen(PORT, () => {
       console.log(`✅ Server is running on port ${PORT}`);
     });
   } catch (error) {
     console.error("Unable to sync database:", error);
-    process.exit(1); // Keluar jika tidak bisa sync DB
+    process.exit(1);
   }
 }
 

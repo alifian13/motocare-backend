@@ -1,24 +1,22 @@
-// routes/vehiclesRoutes.js
 const express = require("express");
-const { Op } = require('sequelize'); // Impor Op jika Anda menggunakannya di query lain di file ini
+const { Op } = require('sequelize');
 const {
   Vehicle,
   ServiceHistory,
   MaintenanceSchedule,
   Trip,
-  Notification, // Pastikan Notification diimpor jika digunakan di endpoint lain di file ini
+  Notification,
   sequelize,
 } = require("../models");
 const authMiddleware = require("../utils/authMiddleware");
 const {
   checkAndGenerateSchedulesAndNotifications,
-  generateInitialSchedules, // Jika Anda memanggil ini dari sini
+  generateInitialSchedules, 
 } = require("../utils/maintenanceScheduler");
 const axios = require("axios");
 
 const router = express.Router();
 
-// --- Fungsi Helper untuk Reverse Geocoding dengan Nominatim ---
 async function getAddressFromCoordinates(latitude, longitude) {
   if (!latitude || !longitude) {
     return null;
@@ -56,7 +54,6 @@ async function getAddressFromCoordinates(latitude, longitude) {
   }
 }
 
-// --- Get All Vehicles for Logged-in User ---
 router.get("/my-vehicles", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -71,7 +68,6 @@ router.get("/my-vehicles", authMiddleware, async (req, res) => {
   }
 });
 
-// --- Add a New Vehicle ---
 router.post("/", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const {
@@ -108,12 +104,11 @@ router.post("/", authMiddleware, async (req, res) => {
     );
     console.log('[VEHICLE_ADD_SUCCESS] Vehicle created in DB:', newVehicle.vehicle_id);
     
-    await t.commit(); // Commit transaksi pembuatan kendaraan SEBELUM memanggil scheduler
+    await t.commit(); 
     console.log('[VEHICLE_ADD_SUCCESS] Transaction committed for new vehicle.');
 
     if (newVehicle) {
       console.log(`[VEHICLE_ADD_SCHEDULER_TRIGGER] Triggering initial schedules for vehicle ${newVehicle.vehicle_id}`);
-      // Panggil generateInitialSchedules. Fungsi ini akan menjalankan transaksinya sendiri.
       generateInitialSchedules(newVehicle.vehicle_id).catch(err => {
         console.error(`[VEHICLE_ADD_SCHEDULER_ERROR] Error triggering initial scheduler for new vehicle ${newVehicle.vehicle_id}:`, err);
       });
@@ -137,7 +132,6 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 });
 
-// --- Get Service History for a Vehicle ---
 router.get("/:vehicleId/history", authMiddleware, async (req, res) => {
   try {
     const requestedVehicleId = parseInt(req.params.vehicleId, 10);
@@ -161,18 +155,16 @@ router.get("/:vehicleId/history", authMiddleware, async (req, res) => {
   }
 });
 
-// --- Add Service History for a Vehicle (Manual Entry) ---
 router.post('/:vehicleId/service-history', authMiddleware, async (req, res) => {
   const { vehicleId } = req.params;
   const userId = req.user.id;
   const {
     service_date,
     odometer_at_service,
-    service_types, // Array of strings
+    service_types,
     description,
     workshop_name,
     cost,
-    // completed_schedule_ids TIDAK DIPROSES DI SINI, ini untuk update schedule
   } = req.body;
 
   console.log(`[SERVICE_HISTORY_ADD_REQUEST] Vehicle ID: ${vehicleId}, Data:`, req.body);
@@ -197,9 +189,9 @@ router.post('/:vehicleId/service-history', authMiddleware, async (req, res) => {
 
     const createdHistories = [];
     for (const type of service_types) {
-      if (!type || type.trim() === "") { // Validasi tambahan untuk service_type
+      if (!type || type.trim() === "") {
         console.warn('[SERVICE_HISTORY_ADD_WARN] Empty service_type skipped:', type);
-        continue; // Lewati jika tipe servis kosong
+        continue;
       }
       const history = await ServiceHistory.create({
         vehicle_id: parseInt(vehicleId, 10),
@@ -253,8 +245,6 @@ router.post('/:vehicleId/service-history', authMiddleware, async (req, res) => {
   }
 });
 
-
-// --- Update Odometer Manually ---
 router.put("/:vehicleId/odometer", authMiddleware, async (req, res) => {
   const { vehicleId } = req.params;
   const userId = req.user.id;
@@ -317,7 +307,6 @@ router.put("/:vehicleId/odometer", authMiddleware, async (req, res) => {
   }
 });
 
-// --- Get Maintenance Schedules for a Vehicle ---
 router.get("/:vehicleId/schedules", authMiddleware, async (req, res) => {
   try {
     const requestedVehicleId = parseInt(req.params.vehicleId, 10);
@@ -349,22 +338,19 @@ router.get("/:vehicleId/schedules", authMiddleware, async (req, res) => {
   }
 });
 
-// --- Update/Complete Maintenance Schedule ---
 router.put("/:vehicleId/maintenance-schedules/:scheduleId", authMiddleware, async (req, res) => {
   const { vehicleId, scheduleId } = req.params;
   const userId = req.user.id;
   const {
-    status, // 'COMPLETED', 'SKIPPED', 'PENDING', 'UPCOMING', 'OVERDUE'
+    status,
     service_date,
     odometer_at_service,
-    description, // Ini adalah deskripsi untuk ServiceHistory jika status COMPLETED
+    description,
     workshop_name,
     cost,
-    // Untuk update manual jadwal (jika status bukan COMPLETED/SKIPPED):
-    item_name, // Nama item jadwal
+    item_name,
     next_due_date,
     next_due_odometer,
-    // schedule_description, // Deskripsi untuk jadwal itu sendiri (jika dibedakan)
   } = req.body;
 
   console.log(`[SCHEDULE_UPDATE_REQUEST] VehicleID: ${vehicleId}, ScheduleID: ${scheduleId}, Body:`, req.body);
@@ -392,10 +378,7 @@ router.put("/:vehicleId/maintenance-schedules/:scheduleId", authMiddleware, asyn
 
     let serviceHistoryEntry = null;
 
-    // Update item_name dan deskripsi jadwal jika ada di payload (untuk update manual)
     if (item_name !== undefined) schedule.item_name = item_name;
-    // Jika ada field 'schedule_description' di req.body, gunakan itu untuk deskripsi jadwal.
-    // Jika tidak, dan status bukan COMPLETED, req.body.description bisa untuk jadwal.
     if (req.body.schedule_description !== undefined) {
         schedule.description = req.body.schedule_description;
     } else if (status !== "COMPLETED" && req.body.description !== undefined) {
@@ -403,7 +386,7 @@ router.put("/:vehicleId/maintenance-schedules/:scheduleId", authMiddleware, asyn
     }
 
 
-    if (status) { // Jika status dikirim di payload
+    if (status) { 
       schedule.status = status;
 
       if (status === "COMPLETED") {
@@ -427,7 +410,7 @@ router.put("/:vehicleId/maintenance-schedules/:scheduleId", authMiddleware, asyn
           service_date: service_date,
           odometer_at_service: parseFloat(odometer_at_service),
           service_type: schedule.item_name,
-          description: description || schedule.description, // Deskripsi dari form penyelesaian, fallback ke deskripsi jadwal
+          description: description || schedule.description,
           workshop_name: workshop_name || null,
           cost: cost ? parseFloat(cost) : null,
         }, { transaction: t });
@@ -446,19 +429,16 @@ router.put("/:vehicleId/maintenance-schedules/:scheduleId", authMiddleware, asyn
 
         schedule.next_due_date = null;
         schedule.next_due_odometer = null;
-        // Status sudah 'COMPLETED'
       } else if (status === "SKIPPED") {
         console.log('[SCHEDULE_UPDATE] Processing SKIPPED status...');
         schedule.next_due_date = null;
         schedule.next_due_odometer = null;
       } else if (["PENDING", "UPCOMING", "OVERDUE"].includes(status)) {
-        // Jika status diupdate manual ke salah satu ini, perbarui juga target jika ada
         console.log(`[SCHEDULE_UPDATE] Processing manual status update to: ${status}`);
-        if (next_due_date !== undefined) schedule.next_due_date = next_due_date; // Bisa null
-        if (next_due_odometer !== undefined) schedule.next_due_odometer = next_due_odometer; // Bisa null
+        if (next_due_date !== undefined) schedule.next_due_date = next_due_date;
+        if (next_due_odometer !== undefined) schedule.next_due_odometer = next_due_odometer;
       }
     } else {
-      // Jika status tidak ada di req.body, mungkin hanya update field lain (item_name, description, next_due_xxx)
       if (next_due_date !== undefined) schedule.next_due_date = next_due_date;
       if (next_due_odometer !== undefined) schedule.next_due_odometer = next_due_odometer;
     }
@@ -470,11 +450,6 @@ router.put("/:vehicleId/maintenance-schedules/:scheduleId", authMiddleware, asyn
     await t.commit();
     console.log('[SCHEDULE_UPDATE] Transaction committed.');
 
-    // Panggil scheduler SETELAH transaksi di-commit.
-    // Hanya panggil jika statusnya COMPLETED atau SKIPPED (memerlukan penjadwalan ulang)
-    // atau jika ada update manual pada target odometer/tanggal yang mungkin mengubah status.
-    // Untuk kasus update status manual ke PENDING/UPCOMING/OVERDUE, scheduler juga perlu dijalankan
-    // untuk memastikan notifikasi (jika ada) sesuai.
     console.log(`[SCHEDULE_UPDATE_SCHEDULER_TRIGGER] Triggering scheduler for vehicle ID ${vehicle.vehicle_id} (status: ${schedule.status})`);
     checkAndGenerateSchedulesAndNotifications(parseInt(vehicle.vehicle_id, 10)).catch(err => {
       console.error(`[SCHEDULE_UPDATE_SCHEDULER_ERROR] Error calling scheduler for vehicle ${vehicle.vehicle_id} after schedule update:`, err);
@@ -505,7 +480,6 @@ router.put("/:vehicleId/maintenance-schedules/:scheduleId", authMiddleware, asyn
 });
 
 
-// --- Record Trip with Reverse Geocoding ---
 router.post('/:vehicleId/trips', authMiddleware, async (req, res) => {
   const { vehicleId } = req.params;
   const userId = req.user.id;
@@ -592,18 +566,15 @@ router.post('/:vehicleId/trips', authMiddleware, async (req, res) => {
   }
 });
 
-// GET all trips for a specific vehicle with pagination and sorting
 router.get('/:vehicleId/all-trips', authMiddleware, async (req, res) => {
   try {
     const { vehicleId } = req.params;
-    const userId = req.user.id; // Diambil dari token setelah authMiddleware
+    const userId = req.user.id;
 
-    // Mengambil query parameter dari URL
-    const limit = parseInt(req.query.limit) || 10; // Default 10 jika tidak ada
-    const sortBy = req.query.sortBy || 'end_time'; // Default urutkan berdasarkan waktu selesai
-    const sortOrder = req.query.sortOrder === 'ASC' ? 'ASC' : 'DESC'; // Default urutkan menurun
+    const limit = parseInt(req.query.limit) || 10;
+    const sortBy = req.query.sortBy || 'end_time';
+    const sortOrder = req.query.sortOrder === 'ASC' ? 'ASC' : 'DESC';
 
-    // 1. Validasi: Pastikan kendaraan ini milik pengguna yang sedang login
     const vehicle = await Vehicle.findOne({
       where: {
         vehicle_id: vehicleId,
@@ -611,12 +582,10 @@ router.get('/:vehicleId/all-trips', authMiddleware, async (req, res) => {
       },
     });
 
-    // Jika kendaraan tidak ditemukan atau bukan milik user, kirim error 404
     if (!vehicle) {
       return res.status(404).json({ message: 'Kendaraan tidak ditemukan atau Anda tidak memiliki akses.' });
     }
 
-    // 2. Ambil data perjalanan dari database
     const trips = await Trip.findAll({
       where: { vehicle_id: vehicleId },
       limit: limit,
@@ -625,7 +594,6 @@ router.get('/:vehicleId/all-trips', authMiddleware, async (req, res) => {
       ],
     });
 
-    // 3. Kirim data sebagai respons
     res.status(200).json({ trips });
 
   } catch (error) {

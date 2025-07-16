@@ -1,4 +1,3 @@
-// utils/maintenanceScheduler.js
 const { Op } = require('sequelize');
 const { Vehicle, ServiceHistory, MaintenanceSchedule, Notification, ServiceRule, sequelize } = require('../models');
 
@@ -116,11 +115,11 @@ async function checkAndGenerateSchedulesAndNotifications(vehicleId, options = {}
           console.log(`[SCHEDULER_RULE_SAVE] Schedule SAVE successful for "${ruleNameForLog}": ID=${schedule.schedule_id}. Final Status: ${schedule.status}, Final Odo: ${schedule.next_due_odometer}`);
         } catch (saveError) {
           console.error(`[SCHEDULER_RULE_SAVE] ERROR SAVING schedule for "${ruleNameForLog}", ID: ${schedule.schedule_id}`, saveError);
-          if (isOuterTransaction) { // Hanya rollback jika transaksi ini milik scheduler
+          if (isOuterTransaction) {
             await t.rollback();
             console.log(`[SCHEDULER_MAIN] Transaction rolled back for vehicleId: ${vehicleId} due to schedule save error.`);
           }
-          throw saveError; // Lempar error untuk menghentikan proses untuk vehicle ini dan memberi tahu pemanggil jika ada
+          throw saveError;
         }
       } else {
         if (isDetailedLogActive) {
@@ -152,7 +151,7 @@ async function checkAndGenerateSchedulesAndNotifications(vehicleId, options = {}
         if (schedule.status === 'OVERDUE') {
             const overdueKm = currentOdometer - schedule.next_due_odometer;
             notificationMessage = `Motor Anda (${vehicle.brand} ${vehicle.model}) telah melewati jadwal ${schedule.item_name} sekitar ${overdueKm} km lalu (Target: ${schedule.next_due_odometer} km). Segera lakukan perawatan!`;
-        } else { // UPCOMING
+        } else {
             const remainingKm = schedule.next_due_odometer - currentOdometer;
             notificationMessage = `Motor Anda (${vehicle.brand} ${vehicle.model}) mendekati jadwal ${schedule.item_name} (kurang ${remainingKm} km lagi, Target: ${schedule.next_due_odometer} km). Persiapkan perawatan.`;
         }
@@ -188,7 +187,7 @@ async function checkAndGenerateSchedulesAndNotifications(vehicleId, options = {}
       if (isDetailedLogActive) {
         console.log(`[SCHEDULER_RULE] === End Processing Rule: "${ruleNameForLog}" ===\n`);
       }
-    } // Akhir loop for (const rule of serviceRules)
+    }
 
     if (isOuterTransaction) {
       await t.commit();
@@ -209,8 +208,6 @@ async function checkAndGenerateSchedulesAndNotifications(vehicleId, options = {}
     } else if (t && !t.finished && !isOuterTransaction) {
       console.log(`[SCHEDULER_MAIN] Error with existing transaction for vehicleId: ${vehicleId}. Rollback should be handled by caller.`);
     }
-    // Jika transaksi dibuat oleh fungsi ini, kita sudah rollback, jadi tidak perlu throw lagi kecuali ingin di-handle di level lebih atas.
-    // Jika transaksi dari luar, lempar error agar pemanggil bisa rollback.
     if (!isOuterTransaction && error) throw error; 
   }
 }

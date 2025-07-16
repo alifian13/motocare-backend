@@ -1,5 +1,3 @@
-// routes/userRoutes.js
-
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { User, Vehicle, ServiceHistory, sequelize } = require('../models');
@@ -10,19 +8,13 @@ const { generateInitialSchedules } = require('../utils/maintenanceScheduler');
 
 const router = express.Router();
 
-// =================================================================
-// --- KONFIGURASI MULTER (SATU KALI & TERPUSAT) ---
-// =================================================================
-
 // 1. Konfigurasi Penyimpanan File
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Pastikan folder 'uploads/profile_pictures' ada di root backend Anda
     const uploadPath = 'uploads/profile_pictures/';
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    // Buat nama file yang unik menggunakan ID user dari token
     const userId = req.user.id; 
     cb(null, `user-${userId}-${Date.now()}${path.extname(file.originalname)}`);
   }
@@ -42,19 +34,13 @@ function checkFileType(file, cb) {
 }
 
 // 3. Inisialisasi Multer dengan Konfigurasi di atas
-// Variabel 'upload' ini akan kita gunakan sebagai middleware
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // Batas ukuran file 2MB
+  limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: function (req, file, cb) {
     checkFileType(file, cb);
   }
 });
-
-
-// =================================================================
-// --- FUNGSI HELPER & RUTE-RUTE ---
-// =================================================================
 
 // --- Fungsi Helper untuk Logo ---
 function getLogoUrl(brand, model) {
@@ -158,7 +144,6 @@ router.post('/register', async (req, res) => {
 
 // --- User Login ---
 router.post('/login', async (req, res) => {
-    // ... (Logika login Anda yang sudah ada, tidak perlu diubah) ...
     const { email, password } = req.body;
     if (!email || !password) {
         return res.status(400).json({ message: 'Email dan password wajib diisi.' });
@@ -193,7 +178,6 @@ router.post('/login', async (req, res) => {
 
 // --- Get User Profile ---
 router.get('/profile', authMiddleware, async (req, res) => {
-    // ... (Logika get profile Anda yang sudah ada, tidak perlu diubah) ...
     try {
         const user = await User.findByPk(req.user.id, {
             attributes: ['user_id', 'name', 'email', 'address', 'photo_url', 'createdAt', 'updatedAt']
@@ -210,7 +194,6 @@ router.get('/profile', authMiddleware, async (req, res) => {
 
 // --- Update User Profile (Nama, Alamat) ---
 router.put('/profile/update', authMiddleware, async (req, res) => {
-    // ... (Logika update profile Anda yang sudah ada, tidak perlu diubah) ...
     const { name, address } = req.body;
     const userId = req.user.id;
 
@@ -232,8 +215,7 @@ router.put('/profile/update', authMiddleware, async (req, res) => {
 });
 
 
-// --- RUTE UPLOAD FOTO PROFIL (YANG DIPERBAIKI) ---
-// Middleware `upload.single('profile_picture')` digunakan di sini
+// RUTE UPLOAD FOTO PROFIL
 router.post('/profile/upload-picture', authMiddleware, upload.single('profile_picture'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: 'Tidak ada file gambar yang diunggah.' });
@@ -245,7 +227,6 @@ router.post('/profile/upload-picture', authMiddleware, upload.single('profile_pi
             return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
         }
 
-        // Simpan path relatif ke database
         const filePath = `/uploads/profile_pictures/${req.file.filename}`;
         user.photo_url = filePath;
         await user.save();

@@ -1,15 +1,13 @@
-// models/index.js
-const sequelize = require('../config/database'); // Atau '../config/database' sesuai struktur Anda
+const sequelize = require('../config/database');
 
 const User = require('./user.model');
 const Vehicle = require('./vehicle.model');
 const ServiceHistory = require('./serviceHistory.model');
 const MaintenanceSchedule = require('./maintenanceSchedule.model');
-const ServiceRule = require('./serviceRule.model'); // Pastikan ini ada
+const ServiceRule = require('./serviceRule.model');
 const Notification = require('./notification.model');
-const Trip = require('./trip.model'); // Model untuk tabel trips
+const Trip = require('./trip.model');
 
-// Definisikan asosiasi
 User.hasMany(Vehicle, { foreignKey: 'user_id', as: 'vehicles', onDelete: 'CASCADE' });
 Vehicle.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
@@ -19,7 +17,6 @@ ServiceHistory.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'vehicle' });
 Vehicle.hasMany(MaintenanceSchedule, { foreignKey: 'vehicle_id', as: 'schedules', onDelete: 'CASCADE' });
 MaintenanceSchedule.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'vehicle' });
 
-// Asosiasi untuk Notifikasi
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications', onDelete: 'CASCADE' });
 Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 Notification.belongsTo(Vehicle, { foreignKey: 'vehicle_id', as: 'relatedVehicle', allowNull: true, constraints: false });

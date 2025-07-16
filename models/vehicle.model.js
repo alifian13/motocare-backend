@@ -1,7 +1,5 @@
-// models/vehicle.model.js
 const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database'); // Mengacu pada file database.js Anda
-// const User = require('./user.model'); // Akan digunakan untuk asosiasi
+const sequelize = require('../config/database');
 
 const Vehicle = sequelize.define('Vehicle', {
   vehicle_id: {
@@ -9,14 +7,13 @@ const Vehicle = sequelize.define('Vehicle', {
     autoIncrement: true,
     primaryKey: true,
   },
-  user_id: { // Foreign key
+  user_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
   plate_number: {
     type: DataTypes.STRING(20),
     allowNull: false,
-    // unique: true,
   },
   brand: {
     type: DataTypes.STRING(100),
@@ -35,7 +32,7 @@ const Vehicle = sequelize.define('Vehicle', {
     allowNull: true,
   },
   last_service_date: {
-    type: DataTypes.DATEONLY, // Hanya tanggal, tanpa waktu
+    type: DataTypes.DATEONLY,
     allowNull: true,
   },
   photo_url: {
@@ -50,11 +47,11 @@ const Vehicle = sequelize.define('Vehicle', {
   tableName: 'vehicles',
   timestamps: true,
   underscored: true,
-  indexes: [ // <-- TAMBAHKAN BLOK INI
+  indexes: [
     {
       unique: true,
       fields: ['plate_number'],
-      name: 'vehicles_plate_number_unique_constraint' // Nama constraint yang konsisten
+      name: 'vehicles_plate_number_unique_constraint'
     }
   ]
 });
