@@ -6,6 +6,7 @@ const { sequelize, User, Vehicle } = require("./models");
 const userRoutes = require("./routes/userRoutes");
 const vehicleRoutes = require("./routes/vehiclesRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const sparePartRoutes = require("./routes/sparePartRoutes");
 const path = require("path");
 
 const app = express();
@@ -26,6 +27,7 @@ app.get("/", (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/spare-parts", sparePartRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Global Error Handler

@@ -7,6 +7,8 @@ const MaintenanceSchedule = require('./maintenanceSchedule.model');
 const ServiceRule = require('./serviceRule.model');
 const Notification = require('./notification.model');
 const Trip = require('./trip.model');
+const VehicleCoding = require('./vehicleCoding.model');
+const SparePart = require('./sparePart.model');
 
 User.hasMany(Vehicle, { foreignKey: 'user_id', as: 'vehicles', onDelete: 'CASCADE' });
 Vehicle.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
@@ -36,6 +38,8 @@ const db = {
   ServiceRule,
   Notification,
   Trip,
+  VehicleCoding,
+  SparePart,
 };
 
 module.exports = db;

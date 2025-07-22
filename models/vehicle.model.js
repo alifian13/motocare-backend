@@ -23,6 +23,16 @@ const Vehicle = sequelize.define('Vehicle', {
     type: DataTypes.STRING(100),
     allowNull: false,
   },
+  year: {
+    type: DataTypes.INTEGER,
+    allowNull: true, // Atau false jika Anda mewajibkannya saat registrasi
+    comment: 'Tahun pembuatan kendaraan',
+  },
+  vehicle_code: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    comment: 'Kode internal model kendaraan (e.g., K93, K44)',
+  },
   current_odometer: {
     type: DataTypes.INTEGER,
     defaultValue: 0,
