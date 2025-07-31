@@ -9,8 +9,8 @@ async function getVehicleCode(brand, model, year) {
   try {
     const coding = await VehicleCoding.findOne({
       where: {
-        brand: { [Op.iLike]: `%${brand}%` },
-        model: { [Op.iLike]: `%${model}%` },
+        brand: { [Op.Like]: `%${brand}%` },
+        model: { [Op.Like]: `%${model}%` },
         year_start: { [Op.lte]: year },
         year_end: { [Op.gte]: year },
       },

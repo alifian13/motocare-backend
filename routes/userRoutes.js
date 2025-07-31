@@ -66,12 +66,17 @@ function getLogoUrl(brand, model) {
 
 // --- User Registration ---
 router.post('/register', async (req, res) => {
+    console.log("==============================================");
+    console.log("REQUEST BODY DITERIMA DARI APLIKASI:");
+    console.log(req.body);
+    console.log("==============================================");
+
     const {
         name, email, password, address,
-        plate_number, brand, model, year, current_odometer, last_service_date
+        plate_number, brand, model, year, vehicle_code, current_odometer, last_service_date
     } = req.body;
 
-    if (!name || !email || !password || !plate_number || !brand || !model || !year || current_odometer === undefined) {
+    if (!name || !email || !password || !plate_number || !brand || !model || !year || !vehicle_code || current_odometer === undefined) {
         return res.status(400).json({ message: 'Data pengguna dan kendaraan utama tidak boleh kosong.' });
     }
 
@@ -93,7 +98,7 @@ router.post('/register', async (req, res) => {
 
         const logoUrlForVehicle = getLogoUrl(brand, model);
 
-        const vehicleCode = await getVehicleCode(brand, model, parseInt(year, 10));
+        // const vehicleCode = await getVehicleCode(brand, model, parseInt(year, 10));
 
         const newVehicle = await Vehicle.create({
             user_id: newUser.user_id,
@@ -101,7 +106,7 @@ router.post('/register', async (req, res) => {
             brand,
             model,
             year: parseInt(year, 10) || null,
-            vehicle_code: vehicleCode,
+            vehicle_code: vehicle_code,
             current_odometer: parseInt(current_odometer, 10) || 0,
             last_service_date: last_service_date || null,
             logo_url: logoUrlForVehicle,
@@ -129,7 +134,7 @@ router.post('/register', async (req, res) => {
         res.status(201).json({
             message: 'Pengguna dan kendaraan berhasil didaftarkan!',
             user: { user_id: newUser.user_id, name: newUser.name, email: newUser.email, address: newUser.address, photo_url: newUser.photo_url },
-            vehicle: { vehicle_id: newVehicle.vehicle_id, plate_number: newVehicle.plate_number, brand: newVehicle.brand, model: newVehicle.model, current_odometer: newVehicle.current_odometer, logo_url: newVehicle.logo_url },
+            vehicle: { vehicle_id: newVehicle.vehicle_id, plate_number: newVehicle.plate_number, brand: newVehicle.brand, model: newVehicle.model, vehicle_code: newVehicle.vehicle_code, current_odometer: newVehicle.current_odometer, logo_url: newVehicle.logo_url },
             token
         });
 

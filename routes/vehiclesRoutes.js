@@ -5,6 +5,7 @@ const {
   ServiceHistory,
   MaintenanceSchedule,
   Trip,
+  VehicleCoding,
   Notification,
   sequelize,
 } = require("../models");
@@ -74,6 +75,7 @@ router.post("/", authMiddleware, async (req, res) => {
     plate_number,
     brand,
     model,
+    vehicle_code,
     current_odometer,
     last_service_date,
     photo_url,
@@ -94,6 +96,7 @@ router.post("/", authMiddleware, async (req, res) => {
         plate_number,
         brand,
         model,
+        vehicle_code,
         current_odometer: parseInt(current_odometer, 10) || 0,
         last_service_date: last_service_date || null,
         logo_url: logo_url || null,
@@ -323,6 +326,11 @@ router.get("/:vehicleId/schedules", authMiddleware, async (req, res) => {
         vehicle_id: requestedVehicleId,
         status: { [Op.or]: ["PENDING", "UPCOMING", "OVERDUE"] },
       },
+      include: [{
+      model: Vehicle,
+      as: 'vehicle', // Pastikan 'as' ini sesuai dengan definisi di models/index.js
+      attributes: ['vehicle_id', 'model', 'vehicle_code'] // Ambil atribut yg relevan
+    }],
       order: [
         sequelize.literal("CASE status WHEN 'OVERDUE' THEN 1 WHEN 'UPCOMING' THEN 2 WHEN 'PENDING' THEN 3 ELSE 4 END"),
         [sequelize.fn("COALESCE", sequelize.col("next_due_odometer"), 9999999), "ASC"], // Urutkan null di akhir
